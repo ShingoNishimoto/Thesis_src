@@ -1,0 +1,5 @@
+OBC_category,Com_type,path,,
+MOBC,Power,1,4.1,
+MOBC,Signal,1,,
+TOBC,Power,1,4.1,5
+TOBC,Signal,1,3,

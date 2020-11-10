@@ -1,0 +1,11 @@
+Component,Com_portID,Tel_portID
+GS,"1,2",
+MOBC,"3,4.1",1
+PCU,"4.1,4.2,5",4.1
+TOBC,"6,7",3
+HTR_PROP,"10,11",
+HTR_PANEL,"12,13",
+TS_PROP,,8
+TS_PANEL,,9
+PROP,,14
+PANEL,,15

@@ -1,0 +1,9 @@
+ID,Command,Com_begin,Com_end,OBC_category,Com_type
+1,SYS_HTR_ON,GS,"Sys,Prop",TOBC,Power
+2,PROP_HTR_ON,GS,"Prop,Sys",TOBC,Power
+3,TOBC_ON,GS,TOBC,TOBC,Power
+4,MOBC_ON,GS,MOBC,MOBC,Power
+5,MOBC_Noop,GS,MOBC,MOBC,Signal
+6,TOBC_Noop,GS,TOBC,TOBC,Signal
+7,TOBC_OFF,GS,TOBC,TOBC,Power
+8,MOBC_OFF,GS,MOBC,MOBC,Power

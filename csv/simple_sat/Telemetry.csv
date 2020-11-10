@@ -1,0 +1,11 @@
+ID,TelemetryName,TransitionTriger,path,,,
+1,MOBC_Counter,Time,1,,,
+2,TOBC_Counter,Time,3,1,,
+3,MOBC_Current,Command,4.1,1,,
+4,TOBC_Current,Command,4.1,1,,
+5,SYS_Temp,Command,15,9,3,1
+6,PROP_Temp,Command,14,8,3,1
+7,HTR_P_Current,Command,3,1,,
+8,HTR_S_Current,Command,3,1,,
+9,MOBC_Com_Counter,Command,1,,,
+10,TOBC_Com_Counter,Command,3,1,,

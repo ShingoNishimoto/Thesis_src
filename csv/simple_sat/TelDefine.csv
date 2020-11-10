@@ -1,0 +1,11 @@
+ID,Tel_name,Tel_begin,Tel_end,Tel_category
+1,MOBC_Counter,MOBC,GS,MOBC
+2,TOBC_Counter,TOBC,GS,TOBC
+3,MOBC_Current,PCU,GS,PCU
+4,TOBC_Current,PCU,GS,PCU
+5,SYS_Temp,Sys,GS,TOBC
+6,PROP_Temp,Prop,GS,TOBC
+7,HTR_P_Current,TOBC,GS,TOBC
+8,HTR_S_Current,TOBC,GS,TOBC
+9,MOBC_Com_Counter,MOBC,GS,MOBC
+10,TOBC_Com_Counter,TOBC,GS,TOBC
