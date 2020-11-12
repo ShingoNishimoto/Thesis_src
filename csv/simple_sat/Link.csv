@@ -1,4 +1,4 @@
-ID,Port_name,Compo1,Compo2,Medium,Probability
+ID,Link_name,Compo1,Compo2,Medium,Probability
 1,GS-MOBC,GS,MOBC,Signal,0.9
 2,GS-PCU,GS,PCU,Signal,0.9
 3,MOBC-TOBC,MOBC,TOBC,Signal,0.9

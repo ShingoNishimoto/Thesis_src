@@ -1,4 +1,4 @@
-ID,Port_name,Compo1,Compo2,Medium,Probability
+ID,Link_name,Compo1,Compo2,Medium,Probability
 1,GS-SRx,GS,SRx,Radio waves,0.9
 2,GS-STx,GS,STx,Radio waves,0.9
 3,GS-XTx,GS,XTx,Radio waves,0.9

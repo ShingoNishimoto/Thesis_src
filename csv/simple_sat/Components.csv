@@ -1,4 +1,4 @@
-Component,Com_portID,Tel_portID
+Component,Com_linkID,Tel_linkID
 GS,"1,2",
 MOBC,"3,4.1",1
 PCU,"4.1,4.2,5",4.1
