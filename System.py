@@ -1,8 +1,8 @@
 import copy
 from collections import OrderedDict
+import numpy as np
 
 class System():
-    #どうするかな？
     def __init__(self, sat):
         self.sat = sat
         self.candidates = {}
@@ -91,11 +91,11 @@ class System():
         #現状の提示
         print("COMtarget:",self.sat.targetCOMpath,"TELtarget:",self.sat.targetTELpath)
         if not COM_ID:
-            #初期化
-            for COMp in self.sat.COMlinks.values():
-                COMp.verifyCOMnum = 0
-            for TELp in self.sat.TELlinks.values():
-                TELp.verifyCOMnum = 0
+            #初期化．これはもう使ってない指標な気がする．そのリンクを通るコマンドの数
+            for COM_l in self.sat.COMlinks.values():
+                COM_l.verifyCOMnum = 0
+            for TEL_l in self.sat.TELlinks.values():
+                TEL_l.verifyCOMnum = 0
             #探索開始
             for COM_ID in self.remainingCOM:
                 if COM_ID in (self.sat.targetCOM_ID or self.selectedCOM): 
@@ -119,6 +119,9 @@ class System():
                         print("NG")
                         continue
                         #選択肢として表示しないような処理必要
+                    #ここで次のコマンドを探すループを付けなければいけない
+                    #探索を行うのはすべての検証が終わるまで．
+
                     #ここでポイント表示したい
                     self.show_point(COM_ID)
                     #残りはあるけど，検証に使えないときは？
@@ -151,6 +154,9 @@ class System():
                 self.count_COM_num_for_link(COM_ID)
             self.receive_selection(COM_ID)
         self.update_target_path("COM")
+
+    #テレメトリ結果が正常なのかどうかという確率を計算する
+    #def 
     
     def count_COM_num_for_link(self,COM_ID):
         #COM
@@ -190,7 +196,8 @@ class System():
         self.negative_effect[COM_ID]["Power consume by this COM"] = round(self.sat.COM_consume_power,3)
         return 1
     
-    #コマンドと影響を受ける各テレメトリの経路で確認できるリンク数の期待値を考える
+    #コマンドと影響を受ける各テレメトリの経路でLinkを確認できる確率と
+    # リンク数の期待値を考える
     def calculate_mean_check_link_number(self, COM_ID):
         candidate_buff = {}
         #確認候補がある組み合わせから探す
@@ -198,6 +205,7 @@ class System():
             #コピる
             candidate_buff[(COM_ID,TEL_ID)] = self.candidates[(COM_ID,TEL_ID)]
         #print(self.sat.COM[COM_ID].candidate_TEL_ID)
+        #経路が短い順にソートしたものをコピー
         candidate_buff_list = copy.deepcopy(sorted(candidate_buff.items(), key=lambda x:len(x[1]["COM"]+x[1]["TEL"])))
         #print(candidate_buff_list)
         self.effectness[COM_ID]["Check link number"] = 0
@@ -208,43 +216,60 @@ class System():
             COM_route[route_dict[0]] = copy.deepcopy(route_dict[1]["COM"])
             TEL_route[route_dict[0]] = copy.deepcopy(route_dict[1]["TEL"])
             
+        #ここのアルゴリズムも修正した方がいい．確率最大な部分をとるように
+        # 短い順が必ずしも確率の低い場合とは限らない．それぞれのリンクの確率が一様でないときもある．
+        # リンクの確率が一様でないときは経路ごとに確率の大きさを考えても何の意味もない
+        # candidateの中に確認可能性も持たせる．確率は各リンクごとに
+        #確率計算の部分だけ別関数化したいな
         for route_dict in candidate_buff_list:
             link_num = 0
+            self.candidates[route_dict[0]]["P_route"] = {}
             #print(loop[route_dict[0]])
+            P_dict = {}
             for COMlink in copy.deepcopy(route_dict[1]["COM"]):
-                #故障候補のみが対象
-                if COMlink in self.sat.targetCOMpath:
-                    P_normal = 1
-                    #ループで考えるので，TELlinkも考える必要がある
-                    for other_link in COM_route[route_dict[0]]:
-                        if COMlink != other_link:
-                            P_normal = P_normal*self.sat.COMlinks[other_link].probability
-                    for other_link in TEL_route[route_dict[0]]: 
-                        P_normal = P_normal*self.sat.TELlinks[other_link].probability
-                    link_num = link_num + P_normal
-                    #次の経路での計算に入らないようにremove
-                    for i in range(len(candidate_buff_list)):
-                        other_route = candidate_buff_list[i]
-                        if COMlink in other_route[1]["COM"]:
-                            #print(COMlink)
-                            candidate_buff_list[i][1]["COM"].remove(COMlink)
-                    #print(COMlink, P_normal, link_num)
-            for TELlink in copy.deepcopy(route_dict[1]["TEL"]):
-                if TELlink in self.sat.targetTELpath:
-                    P_normal = 1
-                    for other_link in TEL_route[route_dict[0]]:
-                        if TELlink != other_link:
-                            P_normal = P_normal*self.sat.TELlinks[other_link].probability
-                    for other_link in COM_route[route_dict[0]]:
-                        P_normal = P_normal*self.sat.COMlinks[other_link].probability
-                    link_num = link_num + P_normal
+                P_li_R = 1
+                #ループで考えるので，TELlinkも考える必要がある
+                for other_link in COM_route[route_dict[0]]:
+                    if COMlink != other_link:
+                        P_li_R = P_li_R*self.sat.COMlinks[other_link].probability
+                for other_link in TEL_route[route_dict[0]]: 
+                    P_li_R = P_li_R*self.sat.TELlinks[other_link].probability
+                link_num = link_num + P_li_R
+                P_dict[COMlink] = P_li_R
                 #次の経路での計算に入らないようにremove
-                    for i in range(len(candidate_buff_list)):
-                        other_route = candidate_buff_list[i]
-                        if TELlink in other_route[1]["TEL"]:
-                            #print(TELlink)
-                            candidate_buff_list[i][1]["TEL"].remove(TELlink)
-                    #print(TELlink, P_normal,link_num)
+                for i in range(len(candidate_buff_list)):
+                    other_route = candidate_buff_list[i]
+                    if COMlink in other_route[1]["COM"]:
+                        #print(COMlink)
+                        candidate_buff_list[i][1]["COM"].remove(COMlink)
+                #print(COMlink, P_li_R, link_num)
+            #COMlinkの分を回収．
+            self.candidates[route_dict[0]]["P_route"]["COM"] = P_dict
+            self.candidates[route_dict[0]]["P_route"]["average"] = np.average(list(P_dict.values()))
+            #TEL用に初期化
+            P_dict = {}
+            for TELlink in copy.deepcopy(route_dict[1]["TEL"]):
+                P_li_R = 1
+                for other_link in TEL_route[route_dict[0]]:
+                    if TELlink != other_link:
+                        P_li_R = P_li_R*self.sat.TELlinks[other_link].probability
+                for other_link in COM_route[route_dict[0]]:
+                    P_li_R = P_li_R*self.sat.COMlinks[other_link].probability
+                link_num = link_num + P_li_R
+                P_dict[TELlink] = P_li_R
+            #次の経路での計算に入らないようにremove
+                for i in range(len(candidate_buff_list)):
+                    other_route = candidate_buff_list[i]
+                    if TELlink in other_route[1]["TEL"]:
+                        #print(TELlink)
+                        candidate_buff_list[i][1]["TEL"].remove(TELlink)
+            #この経路で見た時の確認可能性TELlinkの分を回収．
+            self.candidates[route_dict[0]]["P_route"]["TEL"] = P_dict 
+            #この経路における平均を計算
+            self.candidates[route_dict[0]]["P_route"]["average"] = self.candidates[route_dict[0]]["P_route"]["average"]\
+                + np.average(list(P_dict.values()))
+        
+                #print(TELlink, P_li_R,link_num)
             #コマンドによる数を合計
             self.effectness[COM_ID]["Check link number"] = self.effectness[COM_ID]["Check link number"] + link_num
             self.effectness[COM_ID]["Mean Probability of check"] = self.effectness[COM_ID]["Check link number"]/self.effectness[COM_ID]["candidate link number"]
