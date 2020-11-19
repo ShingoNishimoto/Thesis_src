@@ -1,6 +1,7 @@
 import copy
 from collections import OrderedDict
 import numpy as np
+from Process import Process
 
 class System():
     def __init__(self, sat):
@@ -107,6 +108,9 @@ class System():
                 else:
                     self.candidates.update(self.sat.find_check_COM(COM_ID))
                     self.find_total_link(COM_ID)
+                    #候補がないものは飛ばす
+                    if not self.total_candidates[COM_ID]["COM"] and not self.total_candidates[COM_ID]["TEL"]:
+                        continue
                     #ここに確認可能性リンクの平均計算
                     self.calculate_mean_check_link_number(COM_ID)
                     #print(self.candidates)
@@ -121,6 +125,10 @@ class System():
                         #選択肢として表示しないような処理必要
                     #ここで次のコマンドを探すループを付けなければいけない
                     #探索を行うのはすべての検証が終わるまで．
+                    process = Process(self.sat.COM[COM_ID],self.candidates,self.sat.COMlinks,self.sat.TELlinks)
+                    process.Process_flow()
+                    #ここでresultを受け取って，各結果ごとに再探索を行う．
+
 
                     #ここでポイント表示したい
                     self.show_point(COM_ID)
@@ -154,6 +162,10 @@ class System():
                 self.count_COM_num_for_link(COM_ID)
             self.receive_selection(COM_ID)
         self.update_target_path("COM")
+
+    #名前おかしい
+    #def handle_tel_result(self, COM_ID,process):
+    #    for process.result["normal"]
 
     #テレメトリ結果が正常なのかどうかという確率を計算する
     #def 
@@ -245,7 +257,7 @@ class System():
                 #print(COMlink, P_li_R, link_num)
             #COMlinkの分を回収．
             self.candidates[route_dict[0]]["P_route"]["COM"] = P_dict
-            self.candidates[route_dict[0]]["P_route"]["average"] = np.average(list(P_dict.values()))
+            
             #TEL用に初期化
             P_dict = {}
             for TELlink in copy.deepcopy(route_dict[1]["TEL"]):
@@ -266,8 +278,24 @@ class System():
             #この経路で見た時の確認可能性TELlinkの分を回収．
             self.candidates[route_dict[0]]["P_route"]["TEL"] = P_dict 
             #この経路における平均を計算
-            self.candidates[route_dict[0]]["P_route"]["average"] = self.candidates[route_dict[0]]["P_route"]["average"]\
-                + np.average(list(P_dict.values()))
+            #空の場合の処理も必要
+            P_COM_dict = self.candidates[route_dict[0]]["P_route"]["COM"]
+            P_TEL_dict = self.candidates[route_dict[0]]["P_route"]["TEL"]
+
+            if not P_COM_dict and not P_TEL_dict:
+                average = 0
+            else:
+                if not P_COM_dict:
+                    P_list = list(P_TEL_dict.values())
+                elif not P_TEL_dict:
+                    P_list = list(P_COM_dict.values())
+                else:
+                    P_list = list(P_COM_dict.values()) + list(P_TEL_dict.values())
+                if len(P_list)==1:
+                    average = P_list[0]
+                else:    
+                    average = np.average(P_list)
+            self.candidates[route_dict[0]]["P_route"]["average"] = average
         
                 #print(TELlink, P_li_R,link_num)
             #コマンドによる数を合計

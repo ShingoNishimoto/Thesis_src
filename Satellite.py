@@ -222,6 +222,7 @@ class Satellite(System):
                 continue
             #確認の組み合わせがあるTELを集計
             elif TEL_ID not in self.COM[COM_ID].candidate_TEL_ID:
+                #ここの信ぴょう性が低い
                 self.COM[COM_ID].candidate_TEL_ID.append(TEL_ID)
                 if not self.TEL[TEL_ID].checked_flag:
                     self.COM[COM_ID].verify_flag = 1
