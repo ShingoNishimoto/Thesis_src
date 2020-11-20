@@ -106,29 +106,14 @@ class System():
                     print("nothing target")
                     return 1
                 else:
-                    self.candidates.update(self.sat.find_check_COM(COM_ID))
-                    self.find_total_link(COM_ID)
-                    #候補がないものは飛ばす
-                    if not self.total_candidates[COM_ID]["COM"] and not self.total_candidates[COM_ID]["TEL"]:
+                    #0が返ってきたら飛ばす
+                    if self.search_candidate_calculate(COM_ID)==0:
                         continue
-                    #ここに確認可能性リンクの平均計算
-                    self.calculate_mean_check_link_number(COM_ID)
-                    #print(self.candidates)
-                    #現状でのコマンドによって検証できる箇所の洗い出しが終了したので，
-                    #あるポートを検証できるコマンドの数を調べる．
-                    self.count_COM_num_for_link(COM_ID)
-                    self.propagate_COM_effect(COM_ID)
-                    #電力がマイナスになるものは禁止
-                    if not self.calculate_point(COM_ID):
-                        print("NG")
-                        continue
-                        #選択肢として表示しないような処理必要
                     #ここで次のコマンドを探すループを付けなければいけない
                     #探索を行うのはすべての検証が終わるまで．
                     process = Process(self.sat.COM[COM_ID],self.candidates,self.sat.COMlinks,self.sat.TELlinks)
                     process.Process_flow()
                     #ここでresultを受け取って，各結果ごとに再探索を行う．
-
 
                     #ここでポイント表示したい
                     self.show_point(COM_ID)
@@ -157,15 +142,55 @@ class System():
             elif (not self.sat.targetCOMpath and not self.sat.targetTELpath):
                 return 1
             else:
-                self.candidates.update(self.sat.find_check_COM(COM_ID))
-                self.find_total_link(COM_ID)
-                self.count_COM_num_for_link(COM_ID)
+                self.search_candidate_calculate(COM_ID)
+            
             self.receive_selection(COM_ID)
         self.update_target_path("COM")
+    
+    # 候補見つけて，ポイントとか計算する流れを別関数化したい.
+    # 最終まで見つけるループを回して，
+    # その結果をメモ化しておくことで人の選択に応じて提示するだけにできる．
+    # ここに必要な機能は，候補見つける．計算する．
+    def search_candidate_calculate(self, COM_ID):
+        #ここの再利用がしたいが，厳しいかもしれない．
+        self.candidates.update(self.sat.find_check_COM(COM_ID))
+        self.find_total_link(COM_ID)
+        #self.count_COM_num_for_link(COM_ID)
+        #候補がないものは飛ばす
+        if not self.total_candidates[COM_ID]["COM"] and not self.total_candidates[COM_ID]["TEL"]:
+            return 0
+        #ここに確認可能性リンクの平均計算
+        self.calculate_mean_check_link_number(COM_ID)
+        #print(self.candidates)
+        #現状でのコマンドによって検証できる箇所の洗い出しが終了したので，
+        #あるリンクを通るコマンドの数を調べる．
+        ##self.count_COM_num_for_link(COM_ID)
+        self.propagate_COM_effect(COM_ID)
+        #電力がマイナスになるものは禁止
+        if not self.calculate_point(COM_ID):
+            print("NG")
+            return 0
+            #選択肢として表示しないような処理必要
 
     #名前おかしい
-    #def handle_tel_result(self, COM_ID,process):
-    #    for process.result["normal"]
+    # 残るリンクを渡していけばいい(copy of targetCOM(TEL)path)
+    # result_dictは最終的な集計
+    def handle_TEL_result(self,each_result_dict,targetCOMpath,targetTELpath):
+        #process.each_resultもらってそれぞれに関しれ次の探索に行きたい
+        for key, result in each_result_dict.items():
+            #ほしい情報はnormal link or abnormal link
+            result["normal_link"]["COM"]
+        if not process_result:
+            #IDを何にするか？
+            result_dict[ID] = {"COM":targetCOMpath,"TEL":targetTELpath}
+            return result_dict
+        TEL_ID, normal_result = process_result["normal"].items()
+        TEL_ID, abnormal_result = process_result["abnormal"].items()
+        #各検証結果によってnormal or abnormalとなったリンクを知りたい
+        # 末端から辿って行って集計する．
+        #result_dict["normal link"].extend(self.handle_TEL_result(,result_dict))
+        #result_dict["abnormal link"].extend(self.handle_TEL_result(,result_dict))
+
 
     #テレメトリ結果が正常なのかどうかという確率を計算する
     #def 
@@ -207,6 +232,36 @@ class System():
         self.negative_effect[COM_ID]["Remaining Power"] = round(self.sat.RemainingPower + self.sat.COM_consume_power,3)
         self.negative_effect[COM_ID]["Power consume by this COM"] = round(self.sat.COM_consume_power,3)
         return 1
+    
+    def calculate_probability(self,pair,route_dict,candidate_buff_list,TELorCOM):
+        flag = TELorCOM
+        if TELorCOM=="COM":
+            other_flag = "TEL"
+        else:
+            other_flag = "COM"
+        route = {}
+        route[pair] = copy.deepcopy(route_dict[flag])
+        other_route[pair] = copy.deepcopy(route_dict[other_flag])
+
+        for link in copy.deepcopy(route_dict[flag]):
+            P_li_R = 1
+            #ループで考えるので，TELlinkも考える必要がある
+            for other_link in COM_route[route_dict[0]]:
+                if COMlink != other_link:
+                    P_li_R = P_li_R*self.sat.COMlinks[other_link].probability
+            for other_link in TEL_route[route_dict[0]]: 
+                P_li_R = P_li_R*self.sat.TELlinks[other_link].probability
+            link_num = link_num + P_li_R
+            P_dict[COMlink] = P_li_R
+            #次の経路での計算に入らないようにremove
+            for i in range(len(candidate_buff_list)):
+                other_route = candidate_buff_list[i]
+                if COMlink in other_route[1]["COM"]:
+                    #print(COMlink)
+                    candidate_buff_list[i][1]["COM"].remove(COMlink)
+            #print(COMlink, P_li_R, link_num)
+        #COMlinkの分を回収．
+        self.candidates[route_dict[0]]["P_route"]["COM"] = P_dict
     
     #コマンドと影響を受ける各テレメトリの経路でLinkを確認できる確率と
     # リンク数の期待値を考える
@@ -383,14 +438,8 @@ class System():
                 self.sat.targetCOMpath = self.sat.check_links(self.sat.targetCOMpath, self.sat.COMlinks)
                 self.sat.targetTELpath = self.sat.check_links(self.sat.targetTELpath, self.sat.TELlinks)
                 self.sat.update_link_probability()
-                #candidate update必要
-                self.candidates.update(self.sat.find_check_COM(COM_ID))
-                #ここでも集計し直す
-                self.find_total_link(COM_ID)
-                self.calculate_mean_check_link_number(COM_ID)
-                self.count_COM_num_for_link(COM_ID)
-                self.propagate_COM_effect(COM_ID)
-                self.calculate_point(COM_ID)
+                
+                self.search_candidate_calculate(COM_ID)
                 #print(self.candidates[select_key])
                 #ここでポイント表示したい
                 self.show_point(COM_ID)
@@ -425,6 +474,7 @@ class System():
         
     #そのコマンドを打つとどうなるかを更新する
     #これはあくまでも可能性の更新．本当にそのような遷移をしたかは，テレメトリの結果に依存する．←これはどうやって実装する？
+    #状態変化するものだけに適用していればiniCOMに対して行っても問題ない
     def propagate_COM_effect(self,COM_ID):
         previous_compo_state = {}
         #ACTION
