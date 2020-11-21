@@ -14,13 +14,14 @@ class System():
         self.human_select = 0
         self.selectedCOM = []
         self.remainingCOM = [ID for ID in self.sat.COM.keys()]
+        self.all_process = {} #ID:Process
+        self.results = [] #終端までのコマンド数と確率をためる
     
     def init_element(self, df):
         self.elements = []
         #とりあえずlistに収める形だけ実装．細かい体裁は下位で実装
         for row in df.itertuples():
             self.elements.append(row)
-        
 
     def verify_plan(self):
     #まずはテレメトリのみでの確認ができるか判定．つまりコマンドによる変化なしで状態変化する状態量の確認
@@ -53,23 +54,30 @@ class System():
                 break
             print("selected Command:",self.selectedCOM,"remaining Command:",self.remainingCOM)
     
-    def find_total_link(self, COM_ID):
+    def find_total_link(self, COM_ID, Process=0):
+        if not Process:
+            top = self
+        else:
+            top = Process
+        total_candidates = top.total_candidates
+        candidates = top.candidates
+        effectness = top.effectness
         #初期化
-        self.total_candidates[COM_ID]["COM"] = []
-        self.total_candidates[COM_ID]["TEL"] = []
-        for key in self.candidates.keys():
+        total_candidates[COM_ID]["COM"] = []
+        total_candidates[COM_ID]["TEL"] = []
+        for key in candidates.keys():
             #telに関するものは飛ばす
             if (len(key)<2):
                 continue
             elif key[0]!=COM_ID:
                 continue
             else:
-                self.total_candidates[COM_ID]["COM"] = list(set(self.total_candidates[COM_ID]["COM"] + \
-                self.candidates[key]["COM"]))
-                self.total_candidates[COM_ID]["TEL"] = list(set(self.total_candidates[COM_ID]["TEL"] + \
-                self.candidates[key]["TEL"]))
-                self.effectness[COM_ID]["candidate link number"] = len(self.total_candidates[COM_ID]["COM"]) + \
-                len(self.total_candidates[COM_ID]["TEL"])
+                total_candidates[COM_ID]["COM"] = list(set(total_candidates[COM_ID]["COM"] + \
+                candidates[key]["COM"]))
+                total_candidates[COM_ID]["TEL"] = list(set(total_candidates[COM_ID]["TEL"] + \
+                candidates[key]["TEL"]))
+                effectness[COM_ID]["candidate link number"] = len(total_candidates[COM_ID]["COM"]) + \
+                len(total_candidates[COM_ID]["TEL"])
                 #print(self.candidates[key]["veri_link_num"])
                 
     def verify_by_TEL(self, TEL_ID):
@@ -88,7 +96,8 @@ class System():
     def verify_by_COM(self, COM_ID=0):
         if not self.remainingCOM:
             return 1
-        
+        #processごとに持つ確認済みコマンド
+        process_checkedCOM = copy.deepcopy(self.selectedCOM)
         #現状の提示
         print("COMtarget:",self.sat.targetCOMpath,"TELtarget:",self.sat.targetTELpath)
         if not COM_ID:
@@ -99,6 +108,7 @@ class System():
                 TEL_l.verifyCOMnum = 0
             #探索開始
             for COM_ID in self.remainingCOM:
+                ProcessID = {"Parent":0,"result":0} #最初なので0を入れている
                 if COM_ID in (self.sat.targetCOM_ID or self.selectedCOM): 
                     continue
                 #残りがなくなるか，対象がなくなれば終了
@@ -111,14 +121,20 @@ class System():
                         continue
                     #ここで次のコマンドを探すループを付けなければいけない
                     #探索を行うのはすべての検証が終わるまで．
-                    process = Process(self.sat.COM[COM_ID],self.candidates,self.sat.COMlinks,self.sat.TELlinks)
+                    process = Process(self.sat,COM_ID,self.candidates,ProcessID)
+                    #print(process.ID)
+                    self.all_process[process.ID] = process
+                    
                     process.Process_flow()
                     #ここでresultを受け取って，各結果ごとに再探索を行う．
-
+                    self.update_by_TEL_result(process,COM_ID,process_checkedCOM)
+                    
+                    self.calculate_total_score(COM_ID)
                     #ここでポイント表示したい
                     self.show_point(COM_ID)
                     #残りはあるけど，検証に使えないときは？
                     #print(COM_ID,":backup num", self.sat.COM[COM_ID].candidateTELnum)
+                print(self.all_process)
             flag = 0
             for remainCOM in self.remainingCOM:
                 #flagが立ってたら，次に行ける
@@ -151,23 +167,24 @@ class System():
     # 最終まで見つけるループを回して，
     # その結果をメモ化しておくことで人の選択に応じて提示するだけにできる．
     # ここに必要な機能は，候補見つける．計算する．
-    def search_candidate_calculate(self, COM_ID):
-        #ここの再利用がしたいが，厳しいかもしれない．
-        self.candidates.update(self.sat.find_check_COM(COM_ID))
-        self.find_total_link(COM_ID)
+    def search_candidate_calculate(self, COM_ID, Process=0):
+        if not Process:
+            top = self
+        else:
+            top = Process
+        top.candidates.update(top.sat.find_check_COM(COM_ID))
+        self.find_total_link(COM_ID,Process)
         #self.count_COM_num_for_link(COM_ID)
         #候補がないものは飛ばす
-        if not self.total_candidates[COM_ID]["COM"] and not self.total_candidates[COM_ID]["TEL"]:
+        if not top.total_candidates[COM_ID]["COM"] and not top.total_candidates[COM_ID]["TEL"]:
             return 0
         #ここに確認可能性リンクの平均計算
-        self.calculate_mean_check_link_number(COM_ID)
+        self.calculate_mean_check_link_number(COM_ID,Process)
         #print(self.candidates)
-        #現状でのコマンドによって検証できる箇所の洗い出しが終了したので，
-        #あるリンクを通るコマンドの数を調べる．
         ##self.count_COM_num_for_link(COM_ID)
-        self.propagate_COM_effect(COM_ID)
+        self.propagate_COM_effect(COM_ID,Process)
         #電力がマイナスになるものは禁止
-        if not self.calculate_point(COM_ID):
+        if not self.calculate_point(COM_ID,Process):
             print("NG")
             return 0
             #選択肢として表示しないような処理必要
@@ -175,22 +192,59 @@ class System():
     #名前おかしい
     # 残るリンクを渡していけばいい(copy of targetCOM(TEL)path)
     # result_dictは最終的な集計
-    def handle_TEL_result(self,each_result_dict,targetCOMpath,targetTELpath):
+    def update_by_TEL_result(self,process,COM_ID,checkedCOM):
         #process.each_resultもらってそれぞれに関しれ次の探索に行きたい
-        for key, result in each_result_dict.items():
+        #残りの故障候補を更新してこれをProcess.sat.targetpathに渡すようにする？
+        next_checkedCOM = checkedCOM + [COM_ID]
+        remainingCOM = list(set([i for i in self.sat.COM.keys()]) - set(next_checkedCOM))
+        
+        for key, result in process.each_result.items():
+            #print(key,result)
+            #このリセットが必要？
+            ID = {"Parent":process.ID}
             #ほしい情報はnormal link or abnormal link
-            result["normal_link"]["COM"]
-        if not process_result:
-            #IDを何にするか？
-            result_dict[ID] = {"COM":targetCOMpath,"TEL":targetTELpath}
-            return result_dict
-        TEL_ID, normal_result = process_result["normal"].items()
-        TEL_ID, abnormal_result = process_result["abnormal"].items()
-        #各検証結果によってnormal or abnormalとなったリンクを知りたい
-        # 末端から辿って行って集計する．
-        #result_dict["normal link"].extend(self.handle_TEL_result(,result_dict))
-        #result_dict["abnormal link"].extend(self.handle_TEL_result(,result_dict))
+            #テレメトリの結果ごとに新たなProcess生成←これは違う．
+            # 結果から出てくるコマンドの候補ごとに生成するのが正解．
+            #targetの更新だけして，それをnextに渡せるようにすればいい
+            next_sat = copy.deepcopy(process.sat)
+            next_sat.targetCOMpath = list(set(next_sat.targetCOMpath) \
+                - set(result["normal_link"]["COM"]))
+            next_sat.targetTELpath = list(set(next_sat.targetTELpath) \
+                - set(result["normal_link"]["TEL"]))
+            #abnormalが見つかったものや，既に終えたものはsys側で保持しておく
+            if result["abnormal_link"]["COM"] or result["abnormal_link"]["TEL"] or\
+                 (not next_sat.targetCOMpath and not next_sat.targetTELpath):
+                #resultが次のプロセスを持つことにする．終了したときは何もない
+                #print(key,result["abnormal_link"]["COM"])
+                continue
+            else:
+                #find next com
+                ID["result"] = key
+                #print(key)
+                #print(ID)
+                #resultのnext_process更新したほうがいいかも
+                self.generate_next_process(remainingCOM,copy.deepcopy(process),next_sat,ID)
+                
+            #self.
+            
+           
+    #processのコピーを渡す
+    def generate_next_process(self,remainingCOM,current_process,next_sat,ID):
+        current_process.sat = next_sat
+        checkedCOM = list(set([i for i in self.sat.COM.keys()]) - set(remainingCOM))
+        for nextCOM_ID in remainingCOM:
+            if nextCOM_ID in self.sat.targetCOM_ID: 
+                continue
+            else:
+                #0が返ってきたら飛ばす
+                if self.search_candidate_calculate(nextCOM_ID,current_process)==0:
+                    continue
+                next_process = Process(current_process.sat,nextCOM_ID,current_process.candidates,copy.deepcopy(ID))
+                self.all_process[next_process.ID] = next_process
+                next_process.Process_flow()
+                self.update_by_TEL_result(next_process,nextCOM_ID,checkedCOM)
 
+    
 
     #テレメトリ結果が正常なのかどうかという確率を計算する
     #def 
@@ -205,7 +259,11 @@ class System():
             if TELp.ID in self.total_candidates[COM_ID]["TEL"]:
                 TELp.verifyCOMnum = TELp.verifyCOMnum + 1
             
-    def calculate_point(self,COM_ID):
+    def calculate_point(self,COM_ID,Process=0):
+        if not Process:
+            top = self
+        else:
+            top = Process
         #レア度を計算．要らんぽい
         '''
         allCOMnum = len(self.sat.COM)
@@ -224,118 +282,146 @@ class System():
         #引き出しの多さ
         #self.effectness[COM_ID]["back_up_TELnum"] = self.sat.COM[COM_ID].candidateTELnum
         #以下でネガティブポイントを計算
-        self.negative_effect[COM_ID]["impact TEL num"] = len(self.sat.COM[COM_ID].impact_TEL_ID)
+        top.negative_effect[COM_ID]["impact TEL num"] = len(top.sat.COM[COM_ID].impact_TEL_ID)
         
-        if self.sat.RemainingPower < 0:
+        if top.sat.RemainingPower < 0:
             return 0
         #ここは現在の状態に応じて計算を変えないといけない．というか，状態を変化させないコマンドを飛ばすようにすればいい．
-        self.negative_effect[COM_ID]["Remaining Power"] = round(self.sat.RemainingPower + self.sat.COM_consume_power,3)
-        self.negative_effect[COM_ID]["Power consume by this COM"] = round(self.sat.COM_consume_power,3)
+        top.negative_effect[COM_ID]["Remaining Power"] = round(top.sat.RemainingPower + top.sat.COM_consume_power,3)
+        top.negative_effect[COM_ID]["Power consume by this COM"] = round(top.sat.COM_consume_power,3)
         return 1
     
-    def calculate_probability(self,pair,route_dict,candidate_buff_list,TELorCOM):
+    def calculate_total_score(self,COM_ID):
+        #最終までのコマンド数
+        all_COM_num = 1
+        P_result = 1
+        self.results = []
+        #topを探す
+        for ID,process in self.all_process.items():
+            #topはparentが0である 
+            if COM_ID==ID[2][1] and ID[0][1]==0:
+                top_process = process
+                print(COM_ID)
+                print(ID,process.each_result)
+                break
+        
+        #topを持つ子を探す．を繰り返す．
+        self.recurrent_child_search(top_process,all_COM_num,P_result)
+        #結果の平均を取る．特定できなかった場合が入ってない？
+        print(self.results)
+        self.effectness[COM_ID]["total_COM_number"] = sum([d["P"]*d["COM_num"] for d in self.results])
+
+    #parentをもとにして子を探す再帰関数
+    def recurrent_child_search(self,parent,all_COM_num,P_result):
+        key_buff = []
+        for ID,process in self.all_process.items():
+            if ID[0][1]==parent.ID:
+                #確率を計算
+                P_next = P_result*parent.each_result[ID[1][1]]["P"]
+                next_COM_num = all_COM_num + 1
+                key_buff.append(ID[1][1])
+                #このプロセスを親に持つ子を探す
+                self.recurrent_child_search(process,next_COM_num,P_next)
+                #このプロセスで次に行かない結果のものはここで確率をまとめたい
+            else:
+                continue
+        #子プロセスを持っていない結果のkeyを取得したい
+        if key_buff:
+            #print(key_buff)
+            for key,each in parent.each_result.items():
+                if key in key_buff:
+                    continue
+                self.results.append({"P":P_result*each["P"],"COM_num":all_COM_num,"result":key})
+        else:
+        #全部通過したら子がない．ここに途中結果のものも追加されてしまっている．．．．
+            #if 
+            self.results.append({"P":P_result,"COM_num":all_COM_num,"result":None})
+
+    #確率計算のところをまとめ中．ここからやる
+    def calculate_probability(self,pair,route_dict,COM_route,TEL_route,candidate_buff_list,link_num,P_dict,TELorCOM,Process=0):
+        if not Process:
+            top = self
+        else:
+            top = Process
         flag = TELorCOM
         if TELorCOM=="COM":
-            other_flag = "TEL"
+            #other_flag = "TEL"
+            Link1 = top.sat.COMlinks
+            Link2 = top.sat.TELlinks
+            route = COM_route
+            other_route = TEL_route
         else:
-            other_flag = "COM"
-        route = {}
-        route[pair] = copy.deepcopy(route_dict[flag])
-        other_route[pair] = copy.deepcopy(route_dict[other_flag])
+            #other_flag = "COM"
+            Link1 = top.sat.TELlinks
+            Link2 = top.sat.COMlinks
+            route = TEL_route
+            other_route = COM_route
 
         for link in copy.deepcopy(route_dict[flag]):
             P_li_R = 1
-            #ループで考えるので，TELlinkも考える必要がある
-            for other_link in COM_route[route_dict[0]]:
-                if COMlink != other_link:
-                    P_li_R = P_li_R*self.sat.COMlinks[other_link].probability
-            for other_link in TEL_route[route_dict[0]]: 
-                P_li_R = P_li_R*self.sat.TELlinks[other_link].probability
+            #ループで考えるので，COM(TEL)も考える必要がある
+            for other_link in route[pair]:
+                if link != other_link:
+                    P_li_R = P_li_R*Link1[other_link].probability
+            for other_link in other_route[pair]: 
+                P_li_R = P_li_R*Link2[other_link].probability
             link_num = link_num + P_li_R
-            P_dict[COMlink] = P_li_R
-            #次の経路での計算に入らないようにremove
+            P_dict[link] = P_li_R
+            #次の経路での確認可能性の計算に入らないようにremove 
             for i in range(len(candidate_buff_list)):
-                other_route = candidate_buff_list[i]
-                if COMlink in other_route[1]["COM"]:
-                    #print(COMlink)
-                    candidate_buff_list[i][1]["COM"].remove(COMlink)
-            #print(COMlink, P_li_R, link_num)
-        #COMlinkの分を回収．
-        self.candidates[route_dict[0]]["P_route"]["COM"] = P_dict
+                next_route = candidate_buff_list[i]
+                if link in next_route[1][flag]:
+                    candidate_buff_list[i][1][flag].remove(link)
+            print(link, P_li_R, link_num)
+        top.candidates[pair]["P_route"][flag] = P_dict
+        return link_num
     
     #コマンドと影響を受ける各テレメトリの経路でLinkを確認できる確率と
     # リンク数の期待値を考える
-    def calculate_mean_check_link_number(self, COM_ID):
+    def calculate_mean_check_link_number(self, COM_ID, Process=0):
+        if not Process:
+            top = self
+        else:
+            top = Process
         candidate_buff = {}
         #確認候補がある組み合わせから探す
-        for TEL_ID in self.sat.COM[COM_ID].candidate_TEL_ID:
+        for TEL_ID in top.sat.COM[COM_ID].candidate_TEL_ID:
             #コピる
-            candidate_buff[(COM_ID,TEL_ID)] = self.candidates[(COM_ID,TEL_ID)]
+            candidate_buff[(COM_ID,TEL_ID)] = top.candidates[(COM_ID,TEL_ID)]
         #print(self.sat.COM[COM_ID].candidate_TEL_ID)
         #経路が短い順にソートしたものをコピー
         candidate_buff_list = copy.deepcopy(sorted(candidate_buff.items(), key=lambda x:len(x[1]["COM"]+x[1]["TEL"])))
         #print(candidate_buff_list)
-        self.effectness[COM_ID]["Check link number"] = 0
+        top.effectness[COM_ID]["Check link number"] = 0
+        
         COM_route = {}
         TEL_route = {}
         #最初にコピる
         for route_dict in candidate_buff_list:
             COM_route[route_dict[0]] = copy.deepcopy(route_dict[1]["COM"])
             TEL_route[route_dict[0]] = copy.deepcopy(route_dict[1]["TEL"])
-            
+     
         #ここのアルゴリズムも修正した方がいい．確率最大な部分をとるように
         # 短い順が必ずしも確率の低い場合とは限らない．それぞれのリンクの確率が一様でないときもある．
         # リンクの確率が一様でないときは経路ごとに確率の大きさを考えても何の意味もない
         # candidateの中に確認可能性も持たせる．確率は各リンクごとに
         #確率計算の部分だけ別関数化したいな
-        for route_dict in candidate_buff_list:
+        for pair,route_dict in candidate_buff_list:
             link_num = 0
-            self.candidates[route_dict[0]]["P_route"] = {}
+            top.candidates[pair]["P_route"] = {}
             #print(loop[route_dict[0]])
             P_dict = {}
-            for COMlink in copy.deepcopy(route_dict[1]["COM"]):
-                P_li_R = 1
-                #ループで考えるので，TELlinkも考える必要がある
-                for other_link in COM_route[route_dict[0]]:
-                    if COMlink != other_link:
-                        P_li_R = P_li_R*self.sat.COMlinks[other_link].probability
-                for other_link in TEL_route[route_dict[0]]: 
-                    P_li_R = P_li_R*self.sat.TELlinks[other_link].probability
-                link_num = link_num + P_li_R
-                P_dict[COMlink] = P_li_R
-                #次の経路での計算に入らないようにremove
-                for i in range(len(candidate_buff_list)):
-                    other_route = candidate_buff_list[i]
-                    if COMlink in other_route[1]["COM"]:
-                        #print(COMlink)
-                        candidate_buff_list[i][1]["COM"].remove(COMlink)
-                #print(COMlink, P_li_R, link_num)
-            #COMlinkの分を回収．
-            self.candidates[route_dict[0]]["P_route"]["COM"] = P_dict
-            
+            #COM
+            link_num = self.calculate_probability(pair,route_dict,COM_route,TEL_route,candidate_buff_list,link_num,P_dict,"COM",Process)
+       
             #TEL用に初期化
             P_dict = {}
-            for TELlink in copy.deepcopy(route_dict[1]["TEL"]):
-                P_li_R = 1
-                for other_link in TEL_route[route_dict[0]]:
-                    if TELlink != other_link:
-                        P_li_R = P_li_R*self.sat.TELlinks[other_link].probability
-                for other_link in COM_route[route_dict[0]]:
-                    P_li_R = P_li_R*self.sat.COMlinks[other_link].probability
-                link_num = link_num + P_li_R
-                P_dict[TELlink] = P_li_R
-            #次の経路での計算に入らないようにremove
-                for i in range(len(candidate_buff_list)):
-                    other_route = candidate_buff_list[i]
-                    if TELlink in other_route[1]["TEL"]:
-                        #print(TELlink)
-                        candidate_buff_list[i][1]["TEL"].remove(TELlink)
-            #この経路で見た時の確認可能性TELlinkの分を回収．
-            self.candidates[route_dict[0]]["P_route"]["TEL"] = P_dict 
+            link_num = self.calculate_probability(pair,route_dict,COM_route,TEL_route,candidate_buff_list,link_num,P_dict,"TEL",Process)
+            
             #この経路における平均を計算
             #空の場合の処理も必要
-            P_COM_dict = self.candidates[route_dict[0]]["P_route"]["COM"]
-            P_TEL_dict = self.candidates[route_dict[0]]["P_route"]["TEL"]
+            P_COM_dict = top.candidates[pair]["P_route"]["COM"]
+            P_TEL_dict = top.candidates[pair]["P_route"]["TEL"]
 
             if not P_COM_dict and not P_TEL_dict:
                 average = 0
@@ -350,12 +436,12 @@ class System():
                     average = P_list[0]
                 else:    
                     average = np.average(P_list)
-            self.candidates[route_dict[0]]["P_route"]["average"] = average
+            top.candidates[pair]["P_route"]["average"] = average
         
                 #print(TELlink, P_li_R,link_num)
             #コマンドによる数を合計
-            self.effectness[COM_ID]["Check link number"] = self.effectness[COM_ID]["Check link number"] + link_num
-            self.effectness[COM_ID]["Mean Probability of check"] = self.effectness[COM_ID]["Check link number"]/self.effectness[COM_ID]["candidate link number"]
+            top.effectness[COM_ID]["Check link number"] = top.effectness[COM_ID]["Check link number"] + link_num
+            top.effectness[COM_ID]["Mean Probability of check"] = top.effectness[COM_ID]["Check link number"]/top.effectness[COM_ID]["candidate link number"]
     
     #あと表示結果は経路が短い順にした方が良いと思う
     def show_candidates(self):
@@ -376,13 +462,15 @@ class System():
     def receive_selection(self, COM_ID=0):
         if not COM_ID:
             while(1):
-                self.human_select = int(input("Please select Command above(input ID) >>"))
-                #ここに想定してない入力をはじく処理必要
-                if (self.human_select not in self.remainingCOM):
-                    continue
+                self.human_select = input("Please select Command above(input ID) >>")
+                #入力が数字
+                if str.isdecimal(self.human_select):
+                    if int(self.human_select) in self.remainingCOM:
+                        self.human_select = int(self.human_select)
+                        self.show_candidates()
+                        break
                 else:
-                    self.show_candidates()
-                    break
+                    continue                    
         else:
             self.human_select = COM_ID
             self.show_candidates()
@@ -475,42 +563,46 @@ class System():
     #そのコマンドを打つとどうなるかを更新する
     #これはあくまでも可能性の更新．本当にそのような遷移をしたかは，テレメトリの結果に依存する．←これはどうやって実装する？
     #状態変化するものだけに適用していればiniCOMに対して行っても問題ない
-    def propagate_COM_effect(self,COM_ID):
+    def propagate_COM_effect(self,COM_ID,Process=0):
+        if not Process:
+            top = self
+        else:
+            top = Process
         previous_compo_state = {}
         #ACTION
-        if self.sat.COM[COM_ID].type == "ACTION":
-            for target in self.sat.COM[COM_ID].target:
-                compo = self.sat.compos[target["Component"]]
+        if top.sat.COM[COM_ID].type == "ACTION":
+            for target in top.sat.COM[COM_ID].target:
+                compo = top.sat.compos[target["Component"]]
                 previous_compo_state[compo.name] = copy.deepcopy(compo.Active)
                 #電源操作系のコマンドはFunctionが空
                 if not target["Function"]:
-                    if self.sat.COM[COM_ID].Active and not compo.Active:
+                    if top.sat.COM[COM_ID].Active and not compo.Active:
                         compo.Active = True
-                        self.sat.COM_consume_power = compo.PowerConsumption
-                    elif not self.sat.COM[COM_ID].Active and compo.Active:
+                        top.sat.COM_consume_power = compo.PowerConsumption
+                    elif not top.sat.COM[COM_ID].Active and compo.Active:
                         compo.Active = False
-                        self.sat.COM_consume_power = - compo.PowerConsumption
+                        top.sat.COM_consume_power = - compo.PowerConsumption
                     else:
-                        self.sat.COM_consume_power = 0
+                        top.sat.COM_consume_power = 0
                 #コマンドがFunctionを持つ場合
                 else:
                     for func in target["Function"]:
                         #コンポーネントはFunctionの名前をキーとして持つ
-                        if self.sat.COM[COM_ID].Active and not compo.Function[func]["Active"]:
+                        if top.sat.COM[COM_ID].Active and not compo.Function[func]["Active"]:
                             compo.Function[func]["Active"] = True
-                            self.sat.COM_consume_power = compo.Function[func]["PowerConsumption"]
-                        elif not self.sat.COM[COM_ID].Active and compo.Function[func]["Active"]:
+                            top.sat.COM_consume_power = compo.Function[func]["PowerConsumption"]
+                        elif not top.sat.COM[COM_ID].Active and compo.Function[func]["Active"]:
                             compo.Function[func]["Active"] = False
-                            self.sat.COM_consume_power = - compo.Function[func]["PowerConsumption"]
+                            top.sat.COM_consume_power = - compo.Function[func]["PowerConsumption"]
                         else:
-                            self.sat.COM_consume_power = 0
-            self.sat.update_Power_state()
+                            top.sat.COM_consume_power = 0
+            top.sat.update_Power_state()
             #もどす
             for name in previous_compo_state.keys():
-                self.sat.compos[name].Active = previous_compo_state[name]
+                top.sat.compos[name].Active = previous_compo_state[name]
         #今は未実装なだけ，GETとかを実装する
         #GET
-        elif self.sat.COM[COM_ID].type == "GET":
+        elif top.sat.COM[COM_ID].type == "GET":
             
             return 0
     

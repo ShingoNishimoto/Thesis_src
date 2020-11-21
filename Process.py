@@ -1,44 +1,55 @@
 import copy
 from collections import deque
 
+
 #いるんか？クラス
 #コマンドの探索が必要になった段階の第一候補コマンドを受け取る．
 #探索の過程にsystemのメソッド使いたい．てことはsystem全体をコピーする必要があるのか？
 class Process:
-    #対象のコマンドインスタンスを受け取る．
-    # この時にcandidateTELのインスタンスたちももらうか
-    def __init__(self,COM,candidate,COMlinks,TELlinks):
-        #要らん説
-        #self.COM = copy.deepcopy(COM)
+    # processの中で再利用したい情報だけをコピーして持っておく．
+    #次のコマンド候補の検索までこっちでやる？→次のコマンドに関してはこの中で
+    # Processインスタンスを生成する？
+    def __init__(self,sat,COM_ID,previous_candidate,ID):
+        processID = ID 
+        processID["COM_ID"] = COM_ID
+        #hashableにするために
+        self.ID = tuple(processID.items())
         #ここで受け取るものは(COM_ID,candidate_TEL_ID)のものだけにする
-        self.candidateLink = {}
+        self.sat = copy.deepcopy(sat)
+        COM = self.sat.COM[COM_ID]
+        self.candidates = {}
         for TEL_ID in COM.candidate_TEL_ID:
             #ここにcandidateに入ってるけど中身ないやついる説．
-            if not candidate[(COM.ID,TEL_ID)]["COM"] and not candidate[(COM.ID,TEL_ID)]["TEL"]:
+            if not previous_candidate[(COM_ID,TEL_ID)]["COM"] and not previous_candidate[(COM_ID,TEL_ID)]["TEL"]:
                 continue
-            self.candidateLink[(COM.ID,TEL_ID)] = candidate[(COM.ID,TEL_ID)]
+            self.candidates[(COM_ID,TEL_ID)] = previous_candidate[(COM_ID,TEL_ID)]
             #print(candidate[(COM.ID,TEL_ID)])
-        self.COMlinks = COMlinks
-        self.TELlinks = TELlinks
+        #ほんまに全部用意する必要があるのか？これの中身はどこで更新されているのか確認！
+        self.total_candidates = {COM_ID : {"COM":[], "TEL":[]} for COM_ID in self.sat.COM.keys()}
         self.result = {}
-        #いるものだけを受け取ったほうがいい気がするが．．使うならdeepcoyかな
+        self.effectness = {COM_ID : {} for COM_ID in self.sat.COM.keys()}
+        self.negative_effect = {COM_ID : {} for COM_ID in self.sat.COM.keys()}
+        #next processみたいなものを持っておく，IDをシステム側で管理する？
+        #self.
 
     #コマンドが持つ確認候補があるテレメトリの結果を場合分けする
     # これはテレメトリ一つ一つにしても意味ない感じがする．
     # 確認可能性の高いペアから見ていった木構造を作る．経路ごとの平均確率を使う
     def Process_flow(self):
         # candidateを確率高い順にソート
-        candidate_link_list = copy.deepcopy(sorted(self.candidateLink.items(), key=lambda x:x[1]["P_route"]["average"],reverse=True)) 
+        candidate_link_list = copy.deepcopy(sorted(self.candidates.items(), key=lambda x:x[1]["P_route"]["average"],reverse=True)) 
+        #print(candidate_link_list)
         #これコピー渡さんと他の結果に影響する
-        self.result["normal"] = self.calculate_tel_senario(copy.deepcopy(candidate_link_list),"normal")
-        self.result["abnormal"] = self.calculate_tel_senario(copy.deepcopy(candidate_link_list),"abnormal")
-        print("normal",self.result["normal"])
-        print("abnormal",self.result["abnormal"])
+        self.result["normal"] = self.calculate_TEL_senario(copy.deepcopy(candidate_link_list),"normal")
+        self.result["abnormal"] = self.calculate_TEL_senario(copy.deepcopy(candidate_link_list),"abnormal")
+        #print("normal",self.result["normal"])
+        #print("abnormal",self.result["abnormal"])
         #この結果が扱いにくい，知りたいのは最後まで行ったものの全通り
         #辿って行って，next_routeが空になったものが終点であるという判断をすればいいか
         #これを各結果ごとに分けて，ID的なものを割り振った形に直す
         self.devide_each_results()
-        #print(self.each_result)
+        #ここには途中結果も入っている
+        print(self.each_result)
 
     #必要な情報
     #　確率（これは各経路の結果の積（AND）），(normalとかの)結果，どのテレメトリがどの結果になったものか
@@ -50,12 +61,12 @@ class Process:
         key_n = (1,)
         #何もない奴
         self.each_result[key_n] = {"history":[],"P":1,"normal_link":{"COM":[],"TEL":[]},\
-            "abnormal_link":{"COM":[],"TEL":[]}}
+            "abnormal_link":{"COM":[],"TEL":[]}, "next_processes":[]}
         self.call_for_devide(list(self.result["normal"].items())[0],"normal",key_n)
         key_a = (0,)
         #何もない奴
         self.each_result[key_a] = {"history":[],"P":1,"normal_link":{"COM":[],"TEL":[]},\
-            "abnormal_link":{"COM":[],"TEL":[]}}
+            "abnormal_link":{"COM":[],"TEL":[]}, "next_processes":[]}
         self.call_for_devide(list(self.result["abnormal"].items())[0],"abnormal",key_a)
         
     
@@ -70,7 +81,7 @@ class Process:
             p_key = key
         else:
             p_key = key[0:-1]
-        self.each_result[key] = copy.deepcopy(self.each_result[p_key]) #少ないときバグるかも
+        self.each_result[key] = copy.deepcopy(self.each_result[p_key])
         self.each_result[key]["P"] = self.each_result[p_key]["P"]*result["probability"]
         link_flag = result_flag + "_link"
         self.each_result[key][link_flag] = self.dict_merge(self.each_result[p_key][link_flag],\
@@ -88,9 +99,10 @@ class Process:
         #すぐに次の段階へ分岐
         #次があるのか見るのがひつよう
         if result["next_route"]:
-            if result["next_route"]["normal"]:
+            #print(result["next_route"])
+            if "normal" in result["next_route"].keys():
                 self.call_for_devide(list(result["next_route"]["normal"].items())[0],"normal",key_n)
-            if result["next_route"]["abnormal"]:
+            if "abnormal" in result["next_route"].keys():
                 self.call_for_devide(list(result["next_route"]["abnormal"].items())[0],"abnormal",key_a)
         else:
             #なんでもいい
@@ -106,7 +118,7 @@ class Process:
 
 
     #テレメトリの結果がそのシナリオの結果になるための確率を計算
-    def calculate_tel_senario(self,candidate_link_list,Tel_result):
+    def calculate_TEL_senario(self,candidate_link_list,Tel_result):
         result = {}
         #print(candidate_link_list)
         pair, route = candidate_link_list[0]
@@ -116,9 +128,9 @@ class Process:
         # averageの代入だけだと結果に応じた更新ができていない
         P_tel_normal = 1
         for COMlink in route["COM"]:
-            P_tel_normal = P_tel_normal*self.COMlinks[COMlink].probability
+            P_tel_normal = P_tel_normal*self.sat.COMlinks[COMlink].probability
         for TELlink in route["TEL"]:
-            P_tel_normal = P_tel_normal*self.TELlinks[TELlink].probability
+            P_tel_normal = P_tel_normal*self.sat.TELlinks[TELlink].probability
         
         #candidateがテレメの結果によって変わるはずなので引数に応じて分岐させるか．
         if Tel_result=="normal":
@@ -140,11 +152,11 @@ class Process:
         else:
             #candidate_link_listを更新
             if Tel_result=="normal":
-                result[TEL_ID]["next_route"]["normal"] = self.calculate_tel_senario(copy.deepcopy(candidate_link_list),"normal")
-                result[TEL_ID]["next_route"]["abnormal"] = self.calculate_tel_senario(copy.deepcopy(candidate_link_list),"abnormal")
+                result[TEL_ID]["next_route"]["normal"] = self.calculate_TEL_senario(copy.deepcopy(candidate_link_list),"normal")
+                result[TEL_ID]["next_route"]["abnormal"] = self.calculate_TEL_senario(copy.deepcopy(candidate_link_list),"abnormal")
             #abnormal以下はabnormalだけ
             else:
-                result[TEL_ID]["next_route"]["abnormal"] = self.calculate_tel_senario(candidate_link_list,"abnormal")
+                result[TEL_ID]["next_route"]["abnormal"] = self.calculate_TEL_senario(candidate_link_list,"abnormal")
             return result
             
     #メモ化による計算時間の短縮は可能かもしれない
@@ -184,6 +196,7 @@ class Process:
                 #この時点で終了となる．一つ異常が見つかれば終わりとしているため，空を返す
                 # 複数の故障を扱えるようにする際にはよう変更点
                 #ここで代入を使うと別参照になる．代入せずに消す．
+                #print()
                 candidate_link_list.clear()
             #複数存在するときもabnormalしか，以降許さないようにしている
             else:
