@@ -217,19 +217,21 @@ class System():
                 #resultが次のプロセスを持つことにする．終了したときは何もない
                 #print(key,result["abnormal_link"]["COM"])
                 continue
+            #ここら辺で未処理のテレメトリがあるやつは次に行かんようにするとか？
+            # それかそもそも途中の結果を入れないとか
             else:
                 #find next com
                 ID["result"] = key
                 #print(key)
                 #print(ID)
                 #resultのnext_process更新したほうがいいかも
-                self.generate_next_process(remainingCOM,copy.deepcopy(process),next_sat,ID)
+                self.generate_next_process(remainingCOM,copy.deepcopy(process),next_sat,ID,result)
                 
             #self.
             
            
     #processのコピーを渡す
-    def generate_next_process(self,remainingCOM,current_process,next_sat,ID):
+    def generate_next_process(self,remainingCOM,current_process,next_sat,ID,result):
         current_process.sat = next_sat
         checkedCOM = list(set([i for i in self.sat.COM.keys()]) - set(remainingCOM))
         for nextCOM_ID in remainingCOM:
@@ -239,7 +241,10 @@ class System():
                 #0が返ってきたら飛ばす
                 if self.search_candidate_calculate(nextCOM_ID,current_process)==0:
                     continue
+                print(nextCOM_ID)
                 next_process = Process(current_process.sat,nextCOM_ID,current_process.candidates,copy.deepcopy(ID))
+                result["next_processes"].append(next_process.ID)
+                #ここでの追加の時点でおかしいんやろな
                 self.all_process[next_process.ID] = next_process
                 next_process.Process_flow()
                 self.update_by_TEL_result(next_process,nextCOM_ID,checkedCOM)
@@ -301,6 +306,7 @@ class System():
             #topはparentが0である 
             if COM_ID==ID[2][1] and ID[0][1]==0:
                 top_process = process
+                self.top_ID = ID
                 print(COM_ID)
                 print(ID,process.each_result)
                 break
@@ -313,7 +319,24 @@ class System():
 
     #parentをもとにして子を探す再帰関数
     def recurrent_child_search(self,parent,all_COM_num,P_result):
-        key_buff = []
+        #key_buff = []
+        for key, result in parent.each_result.items():
+            if result["next_processes"]:
+                P_next = P_result*result["P"]
+                next_COM_num = all_COM_num + 1
+                for next_ID in result["next_processes"]:
+                    if next_ID in self.all_process.keys():
+                    #このプロセスを親に持つ子を探す
+                        self.recurrent_child_search(self.all_process[next_ID],next_COM_num,P_next)
+                    #ない場合はやめる
+                    else:
+                        continue
+            #次がないものを追加する
+            else:
+                #複数回同じものが確率が累積されてはいっている．
+                # というより，不完全な状態で次のコマンドに行ってるものがある
+                self.results.append({"P":P_result*result["P"],"COM_num":all_COM_num,"result":result["history"]})
+        '''
         for ID,process in self.all_process.items():
             if ID[0][1]==parent.ID:
                 #確率を計算
@@ -334,9 +357,13 @@ class System():
                 self.results.append({"P":P_result*each["P"],"COM_num":all_COM_num,"result":key})
         else:
         #全部通過したら子がない．ここに途中結果のものも追加されてしまっている．．．．
-            #if 
-            self.results.append({"P":P_result,"COM_num":all_COM_num,"result":None})
-
+            #next_processがないものだけ考える
+            print("through process:",parent.each_result)
+            for ID,result in parent.each_result.items():
+                if result["next_processes"]:
+                    continue
+                #self.results.append({"P":P_result,"COM_num":all_COM_num,"result":None})
+        '''
     #確率計算のところをまとめ中．ここからやる
     def calculate_probability(self,pair,route_dict,COM_route,TEL_route,candidate_buff_list,link_num,P_dict,TELorCOM,Process=0):
         if not Process:
