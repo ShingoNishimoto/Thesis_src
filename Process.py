@@ -42,6 +42,7 @@ class Process:
         #これコピー渡さんと他の結果に影響する
         self.result["normal"] = self.calculate_TEL_senario(copy.deepcopy(candidate_link_list),"normal")
         self.result["abnormal"] = self.calculate_TEL_senario(copy.deepcopy(candidate_link_list),"abnormal")
+        #ここで初期コマンド結果が正常だったときと異常だった時の結果をまとめて受け取っている．
         #print("normal",self.result["normal"])
         #print("abnormal",self.result["abnormal"])
         #この結果が扱いにくい，知りたいのは最後まで行ったものの全通り
@@ -61,12 +62,12 @@ class Process:
         key_n = (1,)
         #何もない奴
         self.each_result[key_n] = {"history":[],"P":1,"normal_link":{"COM":[],"TEL":[]},\
-            "abnormal_link":{"COM":[],"TEL":[]}, "next_processes":[]}
+            "abnormal_link":{"COM":[],"TEL":[]}, "next_processes":[],"Fin":False} #終わったかどうかのフラグ
         self.call_for_devide(list(self.result["normal"].items())[0],"normal",key_n)
         key_a = (0,)
         #何もない奴
         self.each_result[key_a] = {"history":[],"P":1,"normal_link":{"COM":[],"TEL":[]},\
-            "abnormal_link":{"COM":[],"TEL":[]}, "next_processes":[]}
+            "abnormal_link":{"COM":[],"TEL":[]}, "next_processes":[],"Fin":False}
         self.call_for_devide(list(self.result["abnormal"].items())[0],"abnormal",key_a)
         
     
@@ -81,6 +82,7 @@ class Process:
             p_key = key
         else:
             p_key = key[0:-1]
+        #ここで多分テレメトリ全て見たのか判定ができていない
         self.each_result[key] = copy.deepcopy(self.each_result[p_key])
         self.each_result[key]["P"] = self.each_result[p_key]["P"]*result["probability"]
         link_flag = result_flag + "_link"
@@ -112,6 +114,7 @@ class Process:
     #辞書の結合
     def dict_merge(self,d1,d2):
         merge_dict = d1.copy()
+        #{"COM:[],"TEL":[]}の結果を結合している
         for k,v in d1.items():
             merge_dict[k] = v + d2[k]
         return merge_dict

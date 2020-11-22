@@ -214,12 +214,17 @@ class System():
             #abnormalが見つかったものや，既に終えたものはsys側で保持しておく
             if result["abnormal_link"]["COM"] or result["abnormal_link"]["TEL"] or\
                  (not next_sat.targetCOMpath and not next_sat.targetTELpath):
-                #resultが次のプロセスを持つことにする．終了したときは何もない
+                #resultが次のプロセスを持つことにする．終了したときは何もないけど，フラグ立てとく
                 #print(key,result["abnormal_link"]["COM"])
+                #フラグ立てる条件がここだけやと死ぬ説->死んだ
+                result["Fin"] = True
                 continue
             #ここら辺で未処理のテレメトリがあるやつは次に行かんようにするとか？
             # それかそもそも途中の結果を入れないとか
             else:
+                #終わって無くても全てのテレメトリを見ていない場合には次にいかない
+                if len(key) < len(process.sat.COM[COM_ID].candidate_TEL_ID):
+                    continue
                 #find next com
                 ID["result"] = key
                 #print(key)
@@ -234,6 +239,7 @@ class System():
     def generate_next_process(self,remainingCOM,current_process,next_sat,ID,result):
         current_process.sat = next_sat
         checkedCOM = list(set([i for i in self.sat.COM.keys()]) - set(remainingCOM))
+        flag = 0
         for nextCOM_ID in remainingCOM:
             if nextCOM_ID in self.sat.targetCOM_ID: 
                 continue
@@ -241,6 +247,8 @@ class System():
                 #0が返ってきたら飛ばす
                 if self.search_candidate_calculate(nextCOM_ID,current_process)==0:
                     continue
+                #見つけたらフラグ立てる
+                flag = 1
                 print(nextCOM_ID)
                 next_process = Process(current_process.sat,nextCOM_ID,current_process.candidates,copy.deepcopy(ID))
                 result["next_processes"].append(next_process.ID)
@@ -248,6 +256,9 @@ class System():
                 self.all_process[next_process.ID] = next_process
                 next_process.Process_flow()
                 self.update_by_TEL_result(next_process,nextCOM_ID,checkedCOM)
+        #全て通過したプロセスは次がなかったということ．->終了と同義
+        if flag==0:
+            result["Fin"] = True
 
     
 
@@ -307,13 +318,13 @@ class System():
             if COM_ID==ID[2][1] and ID[0][1]==0:
                 top_process = process
                 self.top_ID = ID
-                print(COM_ID)
-                print(ID,process.each_result)
+                #print(COM_ID)
+                #print(ID,process.each_result)
                 break
         
         #topを持つ子を探す．を繰り返す．
         self.recurrent_child_search(top_process,all_COM_num,P_result)
-        #結果の平均を取る．特定できなかった場合が入ってない？
+        #結果の平均を取る．
         print(self.results)
         self.effectness[COM_ID]["total_COM_number"] = sum([d["P"]*d["COM_num"] for d in self.results])
 
@@ -331,10 +342,10 @@ class System():
                     #ない場合はやめる
                     else:
                         continue
-            #次がないものを追加する
-            else:
+            #次がないものかつ，終了しているものを見たい
+            elif result["Fin"]:
                 #複数回同じものが確率が累積されてはいっている．
-                # というより，不完全な状態で次のコマンドに行ってるものがある
+                # というより，不完全な状態（途中結果のもの）で次のコマンドに行ってるものがある
                 self.results.append({"P":P_result*result["P"],"COM_num":all_COM_num,"result":result["history"]})
         '''
         for ID,process in self.all_process.items():
@@ -364,7 +375,7 @@ class System():
                     continue
                 #self.results.append({"P":P_result,"COM_num":all_COM_num,"result":None})
         '''
-    #確率計算のところをまとめ中．ここからやる
+    #確率計算
     def calculate_probability(self,pair,route_dict,COM_route,TEL_route,candidate_buff_list,link_num,P_dict,TELorCOM,Process=0):
         if not Process:
             top = self
@@ -399,7 +410,7 @@ class System():
                 next_route = candidate_buff_list[i]
                 if link in next_route[1][flag]:
                     candidate_buff_list[i][1][flag].remove(link)
-            print(link, P_li_R, link_num)
+            #print(link, P_li_R, link_num)
         top.candidates[pair]["P_route"][flag] = P_dict
         return link_num
     
