@@ -134,7 +134,7 @@ class System():
                     self.show_point(COM_ID)
                     #残りはあるけど，検証に使えないときは？
                     #print(COM_ID,":backup num", self.sat.COM[COM_ID].candidateTELnum)
-                print(self.all_process)
+                #print(self.all_process)
             flag = 0
             for remainCOM in self.remainingCOM:
                 #flagが立ってたら，次に行ける
@@ -249,7 +249,7 @@ class System():
                     continue
                 #見つけたらフラグ立てる
                 flag = 1
-                print(nextCOM_ID)
+                #print(nextCOM_ID)
                 next_process = Process(current_process.sat,nextCOM_ID,current_process.candidates,copy.deepcopy(ID))
                 result["next_processes"].append(next_process.ID)
                 #ここでの追加の時点でおかしいんやろな
@@ -325,7 +325,7 @@ class System():
         #topを持つ子を探す．を繰り返す．
         self.recurrent_child_search(top_process,all_COM_num,P_result)
         #結果の平均を取る．
-        print(self.results)
+        #print(self.results)
         self.effectness[COM_ID]["total_COM_number"] = sum([d["P"]*d["COM_num"] for d in self.results])
 
     #parentをもとにして子を探す再帰関数

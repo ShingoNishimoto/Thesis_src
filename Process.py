@@ -50,7 +50,7 @@ class Process:
         #これを各結果ごとに分けて，ID的なものを割り振った形に直す
         self.devide_each_results()
         #ここには途中結果も入っている
-        print(self.each_result)
+        #print(self.each_result)
 
     #必要な情報
     #　確率（これは各経路の結果の積（AND）），(normalとかの)結果，どのテレメトリがどの結果になったものか
