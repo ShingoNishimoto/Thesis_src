@@ -41,11 +41,13 @@ class System():
             elif self.sat.TEL[TEL_ID].trigger == 'Command':
                 continue
         print("\n Check telemetries which influenced by initial Command state\n")
-        for iniCOM_ID in self.sat.initial_COM:
-            #この時の更新はiniCOMなので入力関係ない．結果の確認だけ必要
-            #この前になにを確認するのかという表示が必要
-            self.verify_by_COM(iniCOM_ID)
-            #このコマンドが検証できるポート数を数える．
+        #空判定
+        if self.sat.initial_COM:
+            for iniCOM_ID in self.sat.initial_COM:
+                #この時の更新はiniCOMなので入力関係ない．結果の確認だけ必要
+                #この前になにを確認するのかという表示が必要
+                self.verify_by_COM(iniCOM_ID)
+                #このコマンドが検証できるポート数を数える．
             
         #コマンドによる検証に入る．
         while(1):
@@ -488,9 +490,12 @@ class System():
             #telに関するものは飛ばす
             if (len(key)<2):
                 continue
+            #これは何？→関係ないコマンドに関して省いている
             elif key[0]!=self.human_select:
+                #print(key)
                 continue
-            elif not self.candidates[key]["COM"] and not self.candidates[key]["COM"]:
+            elif not self.candidates[key]["COM"] and not self.candidates[key]["TEL"]:
+                #print(key)
                 continue
             print("Command",key[0],"(",self.sat.COM[key[0]].name, ") & Telemetry",\
                   key[1],"(", self.sat.TEL[key[1]].name, ") can verify following links\n",\

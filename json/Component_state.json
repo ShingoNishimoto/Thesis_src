@@ -65,7 +65,7 @@
 	"CAM":{"Active":true,
 		"Heat":"+",
 		"PowerConsumption":{"value":1,"unit":"W"},
-		"Function":{"Take_Picture":{"Active":true,
+		"Function":{"Take_Picture":{"Active":false,
 					"Heat":"+","PowerConsumption":0.1}}},
 	"XTx":{"Active":true,
 		"Heat":"+",

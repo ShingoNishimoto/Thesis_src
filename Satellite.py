@@ -79,8 +79,14 @@ class Satellite(System):
         self.targetCOM_ID = targetCOM_ID
         #pathIDとして定義されていないものが入った時の対応がない
         #検証対象のパスをリストで取る．これだけだと複数あって中にかぶりが合った時に困る
-        targetTEL_paths = [j for j in [self.TEL[i].path for i in targetTEL_ID]]
-        targetCOM_paths = [j for j in [self.COM[i].path for i in targetCOM_ID]]
+        if not targetTEL_ID:
+            self.targetTEL_ID = []
+        else:
+            targetTEL_paths = [j for j in [self.TEL[i].path for i in targetTEL_ID]]
+        if not targetCOM_ID:
+            self.targetCOM_ID = []
+        else:
+            targetCOM_paths = [j for j in [self.COM[i].path for i in targetCOM_ID]]
         
         #かぶりの解消と，階層構造をなくす操作が必要
         one_layer_targetTELpath = []
@@ -92,21 +98,26 @@ class Satellite(System):
         #junctionを取得
         #listの同一にあるのがペアだと仮定している．入力の仕方としてどのやり方がきれいなのか考える．
         #どっちも影響するときはどうするん？やっぱりimpact TEL IDから見なあかんかもな
-        junction = []
-        for i in range(len(targetTEL_ID)):
-            junction.extend(self.find_junction(targetTEL_ID[i], targetCOM_ID[i]))
-            #print(junction[i].name)
-            
-        targetCOM_route = []
-        for COM_ID in targetCOM_ID:
-            one_layer_targetCOMpath = []
-            targetCOM_path = self.COM[COM_ID].path
-            self.down_demension(targetCOM_path, one_layer_targetCOMpath)
-            for compo in junction:
-                self.trace_with_compo(compo, one_layer_targetCOMpath, targetCOM_route)
-                #print(targetCOM_route)
-        self.targetCOMpath.extend(reversed(list(dict.fromkeys(targetCOM_route))))
-        self.update_link_probability()
+        #以下はコマンドがあるときの話
+        if targetCOM_ID:
+            junction = []
+            for i in range(len(targetTEL_ID)):
+                junction.extend(self.find_junction(targetTEL_ID[i], targetCOM_ID[i]))
+                #print(junction[i].name)
+                
+            targetCOM_route = []
+            for COM_ID in targetCOM_ID:
+                one_layer_targetCOMpath = []
+                targetCOM_path = self.COM[COM_ID].path
+                self.down_demension(targetCOM_path, one_layer_targetCOMpath)
+                for compo in junction:
+                    self.trace_with_compo(compo, one_layer_targetCOMpath, targetCOM_route)
+                    #print(targetCOM_route)
+            self.targetCOMpath.extend(reversed(list(dict.fromkeys(targetCOM_route))))
+            self.update_link_probability()
+        #targetCOM_IDが特に指定されていない場合
+        else:
+            self.targetCOMpath = []
         print("targetTEL:",self.targetTELpath)
         print("targetCOM:",self.targetCOMpath)
         
