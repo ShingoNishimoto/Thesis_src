@@ -128,7 +128,7 @@ class Process:
         TEL_ID = pair[1]
         result[TEL_ID] = {}
         #その経路で結果が正常or異常になる確率
-        # averageの代入だけだと結果に応じた更新ができていない
+        # averageの代入だけだと結果に応じた更新ができていない←これ実装できているのか？
         P_tel_normal = 1
         for COMlink in route["COM"]:
             P_tel_normal = P_tel_normal*self.sat.COMlinks[COMlink].probability

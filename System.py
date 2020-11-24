@@ -150,6 +150,7 @@ class System():
             
             #ここが実際の検証を行うところ
             self.receive_selection()
+            #故障箇所を見つけたら即終了する形になっていない．Processのresultを使用するべき
         #iniCOM用
         else:
             if COM_ID in self.selectedCOM:
@@ -530,7 +531,12 @@ class System():
                 break
         #チェックしたものを再度確認しないようにフラグ必要←これいる？
         #self.sat.TEL[TEL_ID].checked_flag = 1
-    
+   
+   #ここでProcessの結果を利用するべき．
+   # どのプロセスを利用したのかは打ったコマンドと，その前の状態からわかる．
+   # そのプロセスの結果と人間が入力した結果を照らし合わせて次の行動を決めるべき．
+   # abnormalが見つかった場合にはtargetから除いて新たにabnormal linkをSystemで
+   # 持つようにするのがいいかもしれない．次に行くかどうかをそれをもとに判断させるようにする．
     def update_target_path(self, TELorCOM):
         if(TELorCOM=="COM"):
             COM_ID = self.human_select
