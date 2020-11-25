@@ -124,6 +124,8 @@ class Process:
     def calculate_TEL_senario(self,candidate_link_list,Tel_result):
         result = {}
         #print(candidate_link_list)
+        if not candidate_link_list:
+            return result
         pair, route = candidate_link_list[0]
         TEL_ID = pair[1]
         result[TEL_ID] = {}

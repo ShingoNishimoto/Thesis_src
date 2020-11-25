@@ -24,9 +24,9 @@ Compo_state_dict = json_read('json/Component_state.json')
 COM_type_dict = json_read('json/Command_type.json')
 
 def main():
-    targetCOM = [30]
-    targetTEL = [12]    
-    ini_COM = [30]
+    targetCOM = [14]
+    targetTEL = [17]   
+    ini_COM = [14]
     #ini_TELも考える必要がありそう
 
     sat = Satellite(compo_df, link_df, COM_df, TEL_df, COM_type_dict)

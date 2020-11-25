@@ -308,6 +308,17 @@ class System():
         #ここは現在の状態に応じて計算を変えないといけない．というか，状態を変化させないコマンドを飛ばすようにすればいい．
         top.negative_effect[COM_ID]["Remaining Power"] = round(top.sat.RemainingPower + top.sat.COM_consume_power,3)
         top.negative_effect[COM_ID]["Power consume by this COM"] = round(top.sat.COM_consume_power,3)
+        #姿勢変化の影響を追加
+        top.negative_effect[COM_ID]["Attitude"] = "Keep" #default
+        target = top.sat.COM[COM_ID].target[0]
+        target_compo_name, target_fnc_name_list = target["Component"], target["Function"]
+        #Functionあるやつだけ
+        if target_fnc_name_list:
+            Compo = top.sat.compos[target_compo_name]
+            target_fnc = Compo.Function[target_fnc_name_list[0]]
+            if "Attitude" in target_fnc:
+                if target_fnc["Attitude"]=="change":
+                    top.negative_effect[COM_ID]["Attitude"] = "Change"
         return 1
     
     def calculate_total_score(self,COM_ID):
@@ -607,7 +618,8 @@ class System():
         elif not self.total_candidates[COM_ID]["COM"] and not self.total_candidates[COM_ID]["TEL"]:
             return 0
         #効果を表示
-        print("COM", COM_ID, self.sat.COM[COM_ID].name, self.effectness[COM_ID],self.negative_effect[COM_ID])
+        print("COM", COM_ID, self.sat.COM[COM_ID].name,"\n\t", self.effectness[COM_ID],\
+            "\n\t",self.negative_effect[COM_ID])
         
     #そのコマンドを打つとどうなるかを更新する
     #これはあくまでも可能性の更新．本当にそのような遷移をしたかは，テレメトリの結果に依存する．←これはどうやって実装する？
