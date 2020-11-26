@@ -80,7 +80,7 @@ class System():
                 candidates[key]["TEL"]))
                 effectness[COM_ID]["candidate link number"] = len(total_candidates[COM_ID]["COM"]) + \
                 len(total_candidates[COM_ID]["TEL"])
-                #print(self.candidates[key]["veri_link_num"])
+                #print(top.candidates[key])
                 
     def verify_by_TEL(self, TEL_ID):
         self.candidates.update(self.sat.search_TEL(TEL_ID))
@@ -120,6 +120,7 @@ class System():
                 else:
                     #0が返ってきたら飛ばす
                     if self.search_candidate_calculate(COM_ID)==0:
+                        #print("no candidate")
                         continue
                     #ここで次のコマンドを探すループを付けなければいけない
                     #探索を行うのはすべての検証が終わるまで．
@@ -559,7 +560,7 @@ class System():
             #ここで確認した組み合わせは不要だからcandidatesから消す？
             for TEL_ID in self.sat.COM[COM_ID].impact_TEL_ID:
                 select_key = (COM_ID,TEL_ID)
-                if not self.sat.targetCOMpath:
+                if not self.sat.targetCOMpath and not self.sat.targetTELpath:
                     break
                 #不具合検知の組み合わせ 
                 if TEL_ID in self.sat.targetTEL_ID and COM_ID in self.sat.targetCOM_ID:

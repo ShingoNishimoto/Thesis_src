@@ -180,8 +180,8 @@ class Satellite(System):
         self.COM[COM_ID].verify_flag = 0
         self.COM[COM_ID].candidateTELnum = 0
         self.COM[COM_ID].candidate_TEL_ID = []
-        if not self.targetCOMpath:
-            return {}
+        #if not self.targetCOMpath:
+        #    return {}
         one_layer_COMlinks = []
         verify_candidates = {}
         #GETの対象テレメトリを下ろす
@@ -194,8 +194,10 @@ class Satellite(System):
         for TEL_ID in self.COM[COM_ID].impact_TEL_ID:
             #不具合検知のきっかけとなった組み合わせはあてにならないので，飛ばす．
             #降りているかも確認．後から降りていないときは下ろすコマンドも合わせて考えられる用に修正する．
-            if COM_ID in self.targetCOM_ID and TEL_ID in self.targetTEL_ID or not TEL_ID:
+            if (COM_ID in self.targetCOM_ID and TEL_ID in self.targetTEL_ID) or not TEL_ID:
+                #print(COM_ID,"passed_TEL_ID:",TEL_ID)
                 continue
+            #print("impact_TEL_ID:",TEL_ID)
             #以下の実装はACTIONコマンドにしか適用できない
             #コマンドの経路の定義時にtargetのコンポまでの経路のみを作っておく．
             #そのコマンドがtarfetの状態を変化させるかどうかによって調べるか調べないかを見るようにする，
