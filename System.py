@@ -16,6 +16,7 @@ class System():
         self.remainingCOM = [ID for ID in self.sat.COM.keys()]
         self.all_process = {} #ID:Process
         self.results = [] #終端までのコマンド数と確率をためる
+        self.fault_link = 0 #故障リンクの初期値
     
     def init_element(self, df):
         self.elements = []
@@ -36,6 +37,10 @@ class System():
             elif self.sat.TEL[TEL_ID].trigger == 'Time' and self.sat.TEL[TEL_ID].availability:
                 #TELによる検証
                 self.verify_by_TEL(TEL_ID)
+                #故障リンクが見つかったら終えたい
+                if self.fault_link!=0:
+                    print("fault link:",self.fault_link)
+                    return 1
                 
             #コマンドがトリガーのものでもinitial_COMにあるものなら見れるが，後に見る
             elif self.sat.TEL[TEL_ID].trigger == 'Command':
@@ -48,12 +53,20 @@ class System():
                 #この前になにを確認するのかという表示が必要
                 self.verify_by_COM(iniCOM_ID)
                 #このコマンドが検証できるポート数を数える．
+                #故障リンクが見つかったら終えたい
+                if self.fault_link!=0:
+                    print("fault link:",self.fault_link)
+                    return 1
             
         #コマンドによる検証に入る．
         while(1):
             if(self.verify_by_COM()):
                 print("finish")
                 break
+            #故障リンクが見つかったら終えたい
+            elif self.fault_link!=0:
+                print("fault link:",self.fault_link)
+                return 1
             print("selected Command:",self.selectedCOM,"remaining Command:",self.remainingCOM)
     
     def find_total_link(self, COM_ID, Process=0):
@@ -93,6 +106,7 @@ class System():
         self.human_select = TEL_ID
         self.receive_results(TEL_ID)
         self.update_target_path("TEL")
+        
         
     #オーバーロードする
     def verify_by_COM(self, COM_ID=0):
@@ -571,7 +585,14 @@ class System():
                 #確認してもらう
                 else:
                     self.receive_results(TEL_ID)
+                #NGだった時に確認リンクが一つだったならそのリンクが故障箇所であると確定する．
                 if(self.result=="NG"):
+                    candidate_number = len(self.candidates[select_key]["COM"]) + len(self.candidates[select_key]["TEL"])
+                    if candidate_number==1:
+                        #故障リンクが見つかった時点で終了するようにしたい
+                        self.fault_link = self.candidates[select_key]["COM"][0] if self.candidates[select_key]["COM"]\
+                            else self.candidates[select_key]["TEL"]
+                        break
                     continue
                 else:
                     #print(self.candidates[select_key])
@@ -595,7 +616,7 @@ class System():
             #確認フラグを戻す
             for TEL_ID in self.sat.COM[COM_ID].impact_TEL_ID:
                 self.sat.TEL[TEL_ID].checked_flag = 0
-            return 1
+            return 0
         #TEL
         else:
             select_key = (self.human_select,)
@@ -609,7 +630,7 @@ class System():
                 print("TELlink:", self.candidates[select_key]["TEL"], "were verified")
                 self.sat.targetTELpath = self.sat.check_links(self.sat.targetTELpath, self.sat.TELlinks)
                 self.sat.update_link_probability()
-                return 1
+                return 0
             
     #これを使って表示する前に効果と波及効果の大きさをもとにソートして，一部だけの表示にする．
     def show_point(self, COM_ID):

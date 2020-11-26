@@ -24,7 +24,7 @@
         "PowerConsumption":{"value":1,"unit":"W"},
         "Heat":"+",
         "Function":{}},
-	"HTR_PANEL":{"Active":false,
+	"HTR_PANEL":{"Active":true,
 		"PowerConsumption":{"value":2,"unit":"W"},
 		"Heat":"+",
 		"Function":{}},

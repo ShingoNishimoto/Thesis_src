@@ -24,9 +24,9 @@ Compo_state_dict = json_read('json/Component_state.json')
 COM_type_dict = json_read('json/Command_type.json')
 
 def main():
-    targetCOM = [15]
-    targetTEL = [22]   
-    ini_COM = [15]
+    targetCOM = [13,13]
+    targetTEL = [17,16]   
+    ini_COM = [13,13]
     #ini_TELも考える必要がありそう
 
     sat = Satellite(compo_df, link_df, COM_df, TEL_df, COM_type_dict)
@@ -36,9 +36,13 @@ def main():
     sat.find_target_path(targetTEL, targetCOM)
     #print(sat.targetCOMpath)
     sys = System(sat)
-    sys.verify_plan()
-    #完了してたら原因不明
-    print("faulty COMlink:", sys.sat.targetCOMpath, "faulty TELlink:",sys.sat.targetTELpath) #最終的な残り
+    #途中で見つけたら1が返る
+    if sys.verify_plan():
+        return 1
+    #最後まで残った時だけ下を表示
+    # 完了してたら原因不明
+    else:
+        print("faulty COMlink:", sys.sat.targetCOMpath, "faulty TELlink:",sys.sat.targetTELpath) #最終的な残り
     
 if __name__ == "__main__":
     main()
