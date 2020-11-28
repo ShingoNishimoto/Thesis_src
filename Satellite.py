@@ -31,6 +31,9 @@ class Satellite(System):
         self.targetCOMpath = []
         self.targetTELpath = []
         self.COM_consume_power = 0
+        self.target_composCOM = [] #故障候補のコンポの並び
+        self.target_composTEL = ["GS"]
+
         
         
     #初期状態が必要．何のコマンドを受け取っていたのか？(どの機器がONになっていたのか？)ここの洗練化
@@ -74,6 +77,7 @@ class Satellite(System):
     
     #targetとなるTEL ID, COM ID(これらはリスト)受け取って，そこから考える
     #これもほんまはコマンドとテレメトリの組み合わせのリストとして受け取りたい
+    # コンポの並びとしてもターゲットのループを作成する．
     def find_target_path(self, targetTEL_ID, targetCOM_ID):
         self.targetTEL_ID = targetTEL_ID
         self.targetCOM_ID = targetCOM_ID
@@ -104,22 +108,31 @@ class Satellite(System):
             for i in range(len(targetTEL_ID)):
                 junction.extend(self.find_junction(targetTEL_ID[i], targetCOM_ID[i]))
                 #print(junction[i].name)
-                
             targetCOM_route = []
+            targetTEL_route = []
             for COM_ID in targetCOM_ID:
                 one_layer_targetCOMpath = []
                 targetCOM_path = self.COM[COM_ID].path
                 self.down_demension(targetCOM_path, one_layer_targetCOMpath)
                 for compo in junction:
-                    self.trace_with_compo(compo, one_layer_targetCOMpath, targetCOM_route)
+                    #接続コンポの追加
+                    self.target_composCOM.insert(0,compo.name)
+                    #self.target_composTEL.append(compo.name)
+                    self.trace_with_compo(compo, one_layer_targetCOMpath, targetCOM_route,"COM",self.target_composCOM)
+                    #print(self.targetTELpath)
                     #print(targetCOM_route)
             self.targetCOMpath.extend(reversed(list(dict.fromkeys(targetCOM_route))))
             self.update_link_probability()
         #targetCOM_IDが特に指定されていない場合
         else:
             self.targetCOMpath = []
+        #TELのコンポ追加
+        self.trace_with_compo(self.compos["GS"], copy.deepcopy(self.targetTELpath), targetTEL_route,"TEL",self.target_composTEL)
         print("targetTEL:",self.targetTELpath)
         print("targetCOM:",self.targetCOMpath)
+        #print("targetCOM compos:",self.target_composCOM)
+        #print("targetTEL compos:",self.target_composTEL)
+
         
     #各リンクの正常確率は事前に定義しておくものを初期値として考える．
     #ターゲットにならなかったものは全て1に更新する．
@@ -281,7 +294,7 @@ class Satellite(System):
                             break
             #GSに達したら出る
             #roup見つかれば1，なければ0が返る
-            if self.trace_with_compo(end_compo, one_layer_COMlinks, candidate_COMlinks):
+            if self.trace_with_compo(end_compo, one_layer_COMlinks, candidate_COMlinks,"COM"):
                 #print(candidate_COMlinks)
                 #ループがあって組み合わせが初めて検証できる
                 self.TEL[TEL_ID].find_check_TEL(self.targetTELpath)
@@ -311,48 +324,72 @@ class Satellite(System):
         return junction
     
     #モデル生成の過程に関してもここを流用したいが難しそう．．
-    def trace_with_compo(self, compo, one_layer_COMlinks, candidate_COMlinks):
-        trace_candidate_COMlinks = copy.deepcopy(one_layer_COMlinks)
-        if compo.name == "GS": #根元
-            return 1 #何を返す？
-        #コマンドの経路が分岐して合流することはないと考える．->あるよ．電源のとこ
+    #テレメトリに関しても使えるようにする．
+    def trace_with_compo(self, compo, one_layer_links, candidate_links, COMorTEL,compo_list=[]):
+        if COMorTEL=="COM":
+            Links = self.COMlinks
+            if compo.name == "GS": #根元
+                return 1 #何を返す？
         else:
-            #まずこのコンポの前のパスを探す．コンポがもつポートは始点コンポが持つので．注意
-            #このやり方ではダメ．複数パスの時に
-            next_compo_name = " "
-            #ここの探し方も辞書型なら直近のみを見れるのでは？
-            #対象コマンドが持つコマンドリンクを均したものを対象にしている
-            for COMlink_ID in trace_candidate_COMlinks:
-                COMlink = self.COMlinks[COMlink_ID]
-                #現コンポを持つリンクを探す
-                if compo.name in COMlink.component:
-                    next_compo_name = COMlink.component[0] \
-                    if compo.name == COMlink.component[1] else COMlink.component[1]
-                    next_compo = self.compos[next_compo_name]
-                    flag = 0
-                    #print("Temp next compo:",next_compo_name)
-                    #ここまででnext compo仮ぎめ
-                    for nCOMlink_ID in next_compo.COM_link:
-                        if self.COMlinks[nCOMlink_ID].ID in trace_candidate_COMlinks \
-                        and compo.name in self.COMlinks[nCOMlink_ID].component:
-                            trace_candidate_COMlinks.remove(nCOMlink_ID)
-                            candidate_COMlinks.append(nCOMlink_ID)
-                            flag = True
-                        else:
-                            continue
-                    if flag:
-                        break
+            Links = self.TELlinks
+            one_layer_links.reverse()
+            #これは仮おき
+            if compo.name == "PROP": 
+                return 1 #何を返す？
+
+        trace_candidate_links = copy.deepcopy(one_layer_links)
+        #コマンドの経路が分岐して合流することはないと考える．->あるよ．電源のとこ
+        #まずこのコンポの前のパスを探す．コンポがもつポートは始点コンポが持つので．注意
+        #このやり方ではダメ．複数パスの時に
+        next_compo_name = " "
+        #ここの探し方も辞書型なら直近のみを見れるのでは？
+        #対象コマンドが持つコマンドリンクを均したものを対象にしている
+        for link_ID in trace_candidate_links:
+            link = Links[link_ID]
+            #現コンポを持つリンクを探す
+            if compo.name in link.component:
+                next_compo_name = link.component[0] \
+                if compo.name == link.component[1] else link.component[1]
+                next_compo = self.compos[next_compo_name]
+                flag = 0
+                #print("Temp next compo:",next_compo_name)
+                #追加しておく
+                if next_compo_name not in compo_list:
+                    compo_list.insert(0,next_compo_name)
+                    #これも分岐するか
+                    #if COMorTEL=="COM":
+                    #    compo_list.insert(0,next_compo_name)
+                    #else:
+                    #    compo_list.append(next_compo_name)
+                if COMorTEL=="COM":
+                    next_compo_link = next_compo.COM_link
+                else:
+                    next_compo_link = next_compo.TEL_link
+                #ここまででnext compo仮ぎめ
+                for next_link_ID in next_compo_link:
+                    #print(next_link_ID)
+                    #print(compo.name)
+                    if Links[next_link_ID].ID in trace_candidate_links \
+                    and compo.name in Links[next_link_ID].component:
+                        trace_candidate_links.remove(next_link_ID)
+                        candidate_links.append(next_link_ID)
+                        flag = True
+                        
                     else:
-                        #next compoの再探索が必要
-                        next_compo_name = " "
                         continue
-            #nothingのときはループがない→情報が返ってこないので検証の候補にできない
-            if next_compo_name == " ":
-                #print("nothing")
-                return 0
-            else:
-                #print("next:",next_compo_name)
-                return self.trace_with_compo(next_compo, trace_candidate_COMlinks, candidate_COMlinks)
+                if flag:
+                    break
+                else:
+                    #next compoの再探索が必要
+                    next_compo_name = " "
+                    continue
+        #nothingのときはループがない→情報が返ってこないので検証の候補にできない
+        if next_compo_name == " ":
+            #print("nothing")
+            return 0
+        else:
+            #print("next:",next_compo_name)
+            return self.trace_with_compo(next_compo, trace_candidate_links, candidate_links, COMorTEL,compo_list )
         
     
     #検証済みかの確認を行うためのメソッド

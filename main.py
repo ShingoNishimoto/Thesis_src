@@ -5,6 +5,7 @@ import json
 import pandas as pd
 from System import System
 from Satellite import Satellite
+from Network import Network
 
 def csv_read(file_path):
     df = pd.read_csv(file_path)
@@ -24,9 +25,9 @@ Compo_state_dict = json_read('json/Component_state.json')
 COM_type_dict = json_read('json/Command_type.json')
 
 def main():
-    targetCOM = [13,13]
-    targetTEL = [17,16]   
-    ini_COM = [13,13]
+    targetCOM = [14]
+    targetTEL = [17]   
+    ini_COM = [14]
     #ini_TELも考える必要がありそう
 
     sat = Satellite(compo_df, link_df, COM_df, TEL_df, COM_type_dict)
@@ -34,6 +35,11 @@ def main():
     #実験
     #sat.COM[2].init(COM_path_dict['2'])
     sat.find_target_path(targetTEL, targetCOM)
+
+    #Network
+    #network = Network(sat)
+    #network.add_edges()
+
     #print(sat.targetCOMpath)
     sys = System(sat)
     #途中で見つけたら1が返る
