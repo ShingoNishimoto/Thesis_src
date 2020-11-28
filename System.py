@@ -639,9 +639,15 @@ class System():
             return 0
         elif not self.total_candidates[COM_ID]["COM"] and not self.total_candidates[COM_ID]["TEL"]:
             return 0
-        #効果を表示
-        print("COM", COM_ID, self.sat.COM[COM_ID].name,"\n\t", self.effectness[COM_ID],\
-            "\n\t",self.negative_effect[COM_ID])
+        #効果を表示．もう少しわかり易い形に変更
+        #print("COM", COM_ID, self.sat.COM[COM_ID].name,"\n\t", self.effectness[COM_ID],\
+        #    "\n\t",self.negative_effect[COM_ID])
+        print("COM", COM_ID, self.sat.COM[COM_ID].name,"\n\t", "Pm(C):", self.effectness[COM_ID]["Mean Probability of check"],\
+            ", E(C):", self.effectness[COM_ID]["Check link number"],", N(C):", self.effectness[COM_ID]["total_COM_number"],\
+                "\n\t", "Remain Power:",self.negative_effect[COM_ID]['Remaining Power'], \
+                ", Power Consume:", self.negative_effect[COM_ID]['Power consume by this COM'],\
+                ", Impacted TEL num:", self.negative_effect[COM_ID]['impact TEL num'],\
+                ", Attitude:",self.negative_effect[COM_ID]['Attitude'])
         
     #そのコマンドを打つとどうなるかを更新する
     #これはあくまでも可能性の更新．本当にそのような遷移をしたかは，テレメトリの結果に依存する．←これはどうやって実装する？
